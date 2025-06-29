@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>صيدلية د/ أحمد عطية صادق</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --primary-color: #845ec2; }
+    * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+    body { margin: 0; background: #f0f2f5; color: #222; transition: background 0.3s, color 0.3s; }
+    body.dark { background: #1e1e1e; color: #eee; }
+    header {
+      background: linear-gradient(to left, #00c9ff, var(--primary-color));
+      color: white;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    header .designer, header .contact { flex: 1; text-align: right; }
+    header .title { flex: 2; text-align: center; font-size: 24px; font-weight: bold; }
+    .designer a, .contact a { color: white; text-decoration: none; display: inline-block; margin-top: 5px; }
+    .container { max-width: 800px; margin: 20px auto; background: white; border-radius: 12px; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    body.dark .container { background: #2c2c2c; }
+    h2 { color: var(--primary-color); }
+    input, button, select { width: 100%; margin: 10px 0; padding: 10px; border-radius: 8px; font-size: 16px; border: 1px solid #ccc; }
+    body.dark input, body.dark select { background: #444; color: #fff; border: 1px solid #666; }
+    button { background-color: #00c853; color: white; font-weight: bold; border: none; cursor: pointer; }
+    .medicine-card { display: flex; align-items: center; justify-content: space-between; background: #f9f9f9; border: 1px solid #ddd; border-radius: 10px; padding: 10px; margin-top: 10px; flex-wrap: wrap; }
+    body.dark .medicine-card { background: #333; border-color: #666; }
+    .medicine-card img { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; margin-left: 10px; }
+    .delete-btn, .edit-btn { background-color: red; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; margin: 5px 0; }
+    .edit-btn { background-color: #2196f3; }
+    .theme-controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+    .letter-group { margin-top: 20px; }
+    .letter-group h3 { border-bottom: 2px solid var(--primary-color); padding-bottom: 5px; }
+    footer { text-align: center; padding: 15px; background-color: #eee; font-size: 14px; margin-top: 40px; }
+    body.dark footer { background-color: #222; color: #bbb; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="designer">
+      المبرمج والمصمم: محمد صبري الخطيب<br>
+      <a href="tel:01024702490">📞 01024702490</a>
+    </div>
+    <div class="title">صيدلية د/ أحمد عطية صادق</div>
+    <div class="contact">
+      د. محمود عبد التواب المطري<br>
+      <a href="https://wa.me/201028674149" target="_blank">📱 واتساب: 01028674149</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="theme-controls">
+      <button onclick="toggleDarkMode()">🌓 تبديل الوضع</button>
+      <label>🎨 اختر اللون:
+        <input type="color" onchange="setPrimaryColor(this.value)" value="#845ec2">
+      </label>
+    </div>
+
+    <h2>🔒 دخول كمسؤول</h2>
+    <input type="password" id="admin-password" placeholder="كلمة مرور المسؤول">
+    <button onclick="checkAdmin()">دخول</button>
+
+    <h2>🔎 البحث عن دواء</h2>
+    <input type="text" id="search-box" placeholder="ابحث باسم الدواء..." oninput="renderMedicines()">
+
+    <div id="admin-section" style="display:none;">
+      <h2>➕ إضافة / تعديل دواء</h2>
+      <form id="add-form">
+        <input type="text" id="name" placeholder="اسم الدواء" required>
+        <input type="number" id="price" placeholder="السعر" required>
+        <input type="file" id="image" accept="image/*">
+        <button type="submit" id="submit-button">📥 إضافة</button>
+      </form>
+    </div>
+
+    <h2 id="medicines-title">📋 قائمة الأدوية</h2>
+    <div id="medicines-list"></div>
+  </div>
+
+  <footer>
+    المبرمج والمصمم: محمد صبري الخطيب
+  </footer>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBWU9Gi9Y2qqEroeggdE1f-Jo0EzIjIYA4",
+      authDomain: "ththtthh-1fc92.firebaseapp.com",
+      projectId: "ththtthh-1fc92",
+      storageBucket: "ththtthh-1fc92.appspot.com",
+      messagingSenderId: "231002723318",
+      appId: "1:231002723318:web:b295ee8a15660ff75e2dd7"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    let isAdmin = false;
+    let editId = null;
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark');
+    }
+
+    function setPrimaryColor(color) {
+      document.documentElement.style.setProperty('--primary-color', color);
+    }
+
+    function checkAdmin() {
+      const pass = document.getElementById("admin-password").value;
+      if (pass === "66116") {
+        document.getElementById("admin-section").style.display = "block";
+        isAdmin = true;
+        renderMedicines();
+      } else {
+        alert("كلمة المرور غير صحيحة.");
+      }
+    }
+
+    document.getElementById("add-form").addEventListener("submit", function(e) {
+      e.preventDefault();
+      const name = document.getElementById("name").value.trim();
+      const price = document.getElementById("price").value;
+      const file = document.getElementById("image").files[0];
+
+      const saveToFirestore = (imageURL = "") => {
+        const data = { name, price, image: imageURL };
+
+        if (editId) {
+          db.collection("medicines").doc(editId).set(data)
+            .then(() => {
+              alert("✅ تم تعديل الدواء بنجاح");
+              e.target.reset();
+              editId = null;
+              document.getElementById("submit-button").innerText = "📥 إضافة";
+              renderMedicines();
+            });
+        } else {
+          db.collection("medicines").where("name", "==", name).get().then(querySnapshot => {
+            if (!querySnapshot.empty) {
+              alert("⚠️ هذا الدواء مضاف بالفعل.");
+              return;
+            }
+            db.collection("medicines").add(data)
+              .then(() => {
+                alert("✅ تم إضافة الدواء بنجاح");
+                e.target.reset();
+                renderMedicines();
+                document.getElementById("medicines-title").scrollIntoView({ behavior: "smooth" });
+              })
+              .catch((error) => {
+                console.error("❌ خطأ أثناء الإضافة:", error);
+                alert("حدث خطأ أثناء الإضافة.");
+              });
+          });
+        }
+      };
+
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => saveToFirestore(event.target.result);
+        reader.readAsDataURL(file);
+      } else {
+        saveToFirestore();
+      }
+    });
+
+    function deleteMedicine(id) {
+      if (confirm("❗ هل تريد حذف هذا الدواء؟")) {
+        db.collection("medicines").doc(id).delete()
+          .then(() => {
+            alert("✅ تم الحذف بنجاح");
+            renderMedicines();
+          })
+          .catch(err => {
+            alert("حدث خطأ أثناء الحذف");
+            console.error(err);
+          });
+      }
+    }
+
+    function editMedicine(id, data) {
+      document.getElementById("name").value = data.name;
+      document.getElementById("price").value = data.price;
+      editId = id;
+      document.getElementById("submit-button").innerText = "💾 حفظ التعديل";
+      document.getElementById("admin-section").scrollIntoView({ behavior: "smooth" });
+    }
+
+    async function renderMedicines() {
+      const list = document.getElementById("medicines-list");
+      const search = document.getElementById("search-box").value.toLowerCase();
+      list.innerHTML = "";
+
+      const snapshot = await db.collection("medicines").orderBy("name").get();
+      const medicines = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const grouped = {};
+
+      medicines.forEach(med => {
+        if (!med.name.toLowerCase().includes(search)) return;
+        const letter = med.name[0].toUpperCase();
+        if (!grouped[letter]) grouped[letter] = [];
+        grouped[letter].push(med);
+      });
+
+      Object.keys(grouped).sort().forEach(letter => {
+        const groupDiv = document.createElement("div");
+        groupDiv.className = "letter-group";
+        groupDiv.innerHTML = `<h3>${letter}</h3>`;
+        grouped[letter].forEach(data => {
+          const div = document.createElement("div");
+          div.className = "medicine-card";
+          let buttons = "";
+          if (isAdmin) {
+            buttons = `
+              <button onclick='editMedicine("${data.id}", ${JSON.stringify(data).replace(/"/g, '&quot;')})' class="edit-btn">✏️ تعديل</button>
+              <button onclick='deleteMedicine("${data.id}")' class="delete-btn">❌ حذف</button>
+            `;
+          }
+          div.innerHTML = `
+            <div class="medicine-details">
+              <h3 style="color: var(--primary-color);">${data.name}</h3>
+              <p>💰 السعر: ${data.price}</p>
+            </div>
+            ${data.image ? `<img src="${data.image}" alt="${data.name}">` : ""}
+            ${buttons}
+          `;
+          groupDiv.appendChild(div);
+        });
+        list.appendChild(groupDiv);
+      });
+    }
+
+    renderMedicines();
+  </script>
+</body>
+</html>
+
